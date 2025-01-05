@@ -1,6 +1,5 @@
 import pandas as pd
-import numpy as np
-from sklearn.model_selection import train_test_split, cross_val_score
+from sklearn.model_selection import train_test_split
 from sklearn.tree import DecisionTreeClassifier, plot_tree
 from sklearn.cluster import KMeans
 from sklearn.preprocessing import StandardScaler
@@ -8,21 +7,24 @@ from sklearn.metrics import accuracy_score
 from mlxtend.frequent_patterns import apriori, association_rules
 from mlxtend.preprocessing import TransactionEncoder
 import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
 
 # Load the dataset
-file_path = '/mnt/data/world_tourism_economy_data.csv'  # Update with your dataset
+file_path = 'world_tourism_economy_data.csv'  # Replace with the actual path
 tourism_data = pd.read_csv(file_path)
 
 # =======================================
 # Step 1: Data Preparation
 # =======================================
 # Create a new feature: Tourism GDP Percentage
-tourism_data['Tourism_GDP_Percentage'] = (tourism_data['Tourism GDP'] / tourism_data['Total GDP']) * 100
+# Assuming 'tourism_receipts' is equivalent to 'Tourism GDP'
+tourism_data['Tourism_GDP_Percentage'] = (tourism_data['tourism_receipts'] / tourism_data['gdp']) * 100
 
 # Create a binary target variable: High Tourism Impact
 threshold = 5  # Adjust threshold as needed
 tourism_data['High_Tourism_Impact'] = tourism_data['Tourism_GDP_Percentage'] > threshold
+
+# Handle missing values (drop rows with missing required columns)
+tourism_data = tourism_data.dropna(subset=['tourism_receipts', 'gdp', 'tourism_arrivals'])
 
 # Inspect the dataset
 print(tourism_data.head())
@@ -31,7 +33,7 @@ print(tourism_data.head())
 # Step 2: Decision Tree Classification
 # =======================================
 # Prepare features and target
-X = tourism_data[['Tourism Arrivals', 'Tourism GDP', 'Total GDP']]  # Update with relevant columns
+X = tourism_data[['tourism_arrivals', 'tourism_receipts', 'gdp']]  # Relevant columns
 y = tourism_data['High_Tourism_Impact']
 
 # Split the data
@@ -55,7 +57,7 @@ plt.show()
 # Step 3: K-Means Clustering
 # =======================================
 # Select features for clustering
-features = tourism_data[['Tourism Arrivals', 'Tourism GDP', 'Total GDP']].dropna()
+features = tourism_data[['tourism_arrivals', 'tourism_receipts', 'gdp']]
 
 # Standardize the features
 scaler = StandardScaler()
@@ -84,8 +86,8 @@ clusters = kmeans.fit_predict(scaled_features)
 tourism_data['Cluster'] = clusters
 
 # Visualize the clusters in 2D
-plt.scatter(features['Tourism GDP'], features['Tourism Arrivals'], c=clusters, cmap='viridis', marker='o')
-plt.xlabel('Tourism GDP')
+plt.scatter(features['tourism_receipts'], features['tourism_arrivals'], c=clusters, cmap='viridis', marker='o')
+plt.xlabel('Tourism Receipts')
 plt.ylabel('Tourism Arrivals')
 plt.title('2D Clustering of Tourism Data')
 plt.show()
@@ -93,8 +95,11 @@ plt.show()
 # =======================================
 # Step 4: Association Rule Mining
 # =======================================
-# Convert data for Apriori
-region_group = tourism_data.groupby('Region')[['High_Tourism_Impact']].apply(lambda x: x.astype(str).values.tolist())
+# Simulate a region or group-based transaction dataset
+# If no 'Region' column exists, create a proxy using country and year
+tourism_data['Region'] = tourism_data['country'] + '_' + tourism_data['year'].astype(str)
+
+region_group = tourism_data.groupby('Region')['High_Tourism_Impact'].apply(lambda x: x.astype(str).tolist())
 
 # Encode transactions
 te = TransactionEncoder()
@@ -103,7 +108,7 @@ transaction_df = pd.DataFrame(te_ary, columns=te.columns_)
 
 # Apply Apriori
 frequent_itemsets = apriori(transaction_df, min_support=0.3, use_colnames=True)
-rules = association_rules(frequent_itemsets, metric='confidence', min_threshold=0.7)
+rules = association_rules(frequent_itemsets, metric='confidence', min_threshold=0.7, num_itemsets=10)
 
 # Display some rules
 print(rules[['antecedents', 'consequents', 'support', 'confidence']])
@@ -111,12 +116,13 @@ print(rules[['antecedents', 'consequents', 'support', 'confidence']])
 # Example rule prediction
 def predict_tourism_impact(rules_df, region):
     for _, row in rules_df.iterrows():
+        print(row['antecedents'])
         if region in row['antecedents']:
             print(f"Association found: {row['antecedents']} -> {row['consequents']}")
             return
     print(f"No specific association rule found for {region}.")
 
-predict_tourism_impact(rules, 'Europe')
+predict_tourism_impact(rules, 'Portugal_1999')
 
 # =======================================
 # Summary and Insights
