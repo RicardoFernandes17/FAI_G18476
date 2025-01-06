@@ -108,7 +108,7 @@ transaction_df = pd.DataFrame(te_ary, columns=te.columns_)
 
 # Apply Apriori
 frequent_itemsets = apriori(transaction_df, min_support=0.3, use_colnames=True)
-rules = association_rules(frequent_itemsets, metric='confidence', min_threshold=0.7, num_itemsets=10)
+rules = association_rules(frequent_itemsets, metric='confidence', min_threshold=0.3, num_itemsets=10)
 
 # Display some rules
 print(rules[['antecedents', 'consequents', 'support', 'confidence']])
@@ -122,7 +122,7 @@ def predict_tourism_impact(rules_df, region):
             return
     print(f"No specific association rule found for {region}.")
 
-predict_tourism_impact(rules, 'Portugal_1999')
+predict_tourism_impact(rules, 'Portugal_2016')
 
 # =======================================
 # Summary and Insights
