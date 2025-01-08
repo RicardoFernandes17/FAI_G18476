@@ -8,7 +8,7 @@ from mlxtend.frequent_patterns import apriori, association_rules
 from mlxtend.preprocessing import TransactionEncoder
 import matplotlib.pyplot as plt
 
-# Load the dataset
+# Loads the dataset
 file_path = 'world_tourism_economy_data.csv'  # Replace with the actual path
 tourism_data = pd.read_csv(file_path)
 
@@ -27,7 +27,7 @@ tourism_data['High_Tourism_Impact'] = tourism_data['Tourism_GDP_Percentage'] > t
 tourism_data = tourism_data.dropna(subset=['tourism_receipts', 'gdp', 'tourism_arrivals'])
 
 # Inspect the dataset
-print(tourism_data.head())
+# print(tourism_data.head())
 
 # =======================================
 # Step 2: Decision Tree Classification
@@ -95,36 +95,35 @@ plt.show()
 # =======================================
 # Step 4: Association Rule Mining
 # =======================================
-# Simulate a region or group-based transaction dataset
-# If no 'Region' column exists, create a proxy using country and year
-tourism_data['Region'] = tourism_data['country'] + '_' + tourism_data['year'].astype(str)
-
-region_group = tourism_data.groupby('Region')['High_Tourism_Impact'].apply(lambda x: x.astype(str).tolist())
+# Prepare the data for association rule mining
+transactions = tourism_data.groupby('country')['High_Tourism_Impact'].apply(lambda x: [f'High_Impact' if val else 'Low_Impact' for val in x]).tolist()
 
 # Encode transactions
 te = TransactionEncoder()
-te_ary = te.fit(region_group).transform(region_group)
+te_ary = te.fit(transactions).transform(transactions)
 transaction_df = pd.DataFrame(te_ary, columns=te.columns_)
 
 # Apply Apriori
-frequent_itemsets = apriori(transaction_df, min_support=0.3, use_colnames=True)
-rules = association_rules(frequent_itemsets, metric='confidence', min_threshold=0.3, num_itemsets=10)
+frequent_itemsets = apriori(transaction_df, min_support=0.1, use_colnames=True)
+rules = association_rules(frequent_itemsets, metric='confidence', min_threshold=0.5)
 
-# Display some rules
-print(rules[['antecedents', 'consequents', 'support', 'confidence']])
+def predict_high_tourism_impact(rules, country):
+    country_data = tourism_data[tourism_data['country'] == country]
+    if country_data.empty:
+        return "Country not found in the dataset."
+    
+    # Check if the country has consistently high impact
+    if all(country_data['High_Tourism_Impact']):
+        return f"{country} consistently has high tourism impact."
+    
+    # Look for rules that might predict high impact
+    for _, rule in rules.iterrows():
+        if 'High_Impact' in rule['consequents']:
+            return f"{country} might have high tourism impact (confidence: {rule['confidence']:.2f})."
+    
+    return f"No strong indication of high tourism impact for {country}."
 
-# Example rule prediction
-def predict_tourism_impact(rules_df, region):
-    for _, row in rules_df.iterrows():
-        print(row['antecedents'])
-        if region in row['antecedents']:
-            print(f"Association found: {row['antecedents']} -> {row['consequents']}")
-            return
-    print(f"No specific association rule found for {region}.")
-
-predict_tourism_impact(rules, 'Portugal_2016')
-
-# =======================================
-# Summary and Insights
-# =======================================
-print("Data analysis complete. Review outputs and visualizations for insights.")
+# Example usage
+country_to_predict = 'Portugal'  # Replace with any country in your dataset
+prediction = predict_high_tourism_impact(rules, country_to_predict)
+print(prediction)
