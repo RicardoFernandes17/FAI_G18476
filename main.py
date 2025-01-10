@@ -20,8 +20,11 @@ tourism_data = pd.read_csv(file_path)
 tourism_data['Tourism_GDP_Percentage'] = (tourism_data['tourism_receipts'] / tourism_data['gdp']) * 100
 
 # Create a binary target variable: High Tourism Impact
-threshold = 5  # Adjust threshold as needed
-tourism_data['High_Tourism_Impact'] = tourism_data['Tourism_GDP_Percentage'] > threshold
+tourism_threshold = 5  # Adjust threshold as needed
+low_unemployment_threshold = 5  # Define threshold
+
+tourism_data['High_Tourism_Impact'] = tourism_data['Tourism_GDP_Percentage'] > tourism_threshold
+tourism_data['Low_Unemployment'] = tourism_data['unemployment_rate'] < low_unemployment_threshold
 
 # Handle missing values (drop rows with missing required columns)
 tourism_data = tourism_data.dropna(subset=['tourism_receipts', 'gdp', 'tourism_arrivals'])
@@ -96,34 +99,52 @@ plt.show()
 # Step 4: Association Rule Mining
 # =======================================
 # Prepare the data for association rule mining
-transactions = tourism_data.groupby('country')['High_Tourism_Impact'].apply(lambda x: [f'High_Impact' if val else 'Low_Impact' for val in x]).tolist()
+#print(tourism_data)
+transactions = tourism_data[['country', 'High_Tourism_Impact', 'year']]
 
 # Encode transactions
-te = TransactionEncoder()
-te_ary = te.fit(transactions).transform(transactions)
-transaction_df = pd.DataFrame(te_ary, columns=te.columns_)
 
-# Apply Apriori
-frequent_itemsets = apriori(transaction_df, min_support=0.1, use_colnames=True)
-rules = association_rules(frequent_itemsets, metric='confidence', min_threshold=0.5)
+def predict_high_tourism_impact(country, min_support=0.2, min_confidence=0.7):
+    # Filter data for the given country and after 2010
+    country_data = tourism_data[(tourism_data['country'] == country) & (tourism_data['year'] > 2010)]
 
-def predict_high_tourism_impact(rules, country):
-    country_data = tourism_data[tourism_data['country'] == country]
     if country_data.empty:
-        return "Country not found in the dataset."
-    
-    # Check if the country has consistently high impact
-    if all(country_data['High_Tourism_Impact']):
-        return f"{country} consistently has high tourism impact."
-    
-    # Look for rules that might predict high impact
-    for _, rule in rules.iterrows():
-        if 'High_Impact' in rule['consequents']:
-            return f"{country} might have high tourism impact (confidence: {rule['confidence']:.2f})."
-    
+        return "Country not found in the dataset or no data after 2010."
+
+    # Refine the pivot table for better insights
+    ds_pivot = country_data.pivot_table(
+        index='country',
+        columns='year',
+        values='High_Tourism_Impact',
+        aggfunc='max'
+    ).fillna(False)  # Binary pivot table
+
+    # Run Apriori algorithm
+    freq_itemsets = apriori(ds_pivot, min_support=min_support, use_colnames=True)
+    print("Frequent Itemsets:")
+    print(freq_itemsets)
+
+    rules = association_rules(freq_itemsets, metric="confidence", min_threshold=min_confidence)
+    print("Association Rules:")
+    print(rules)
+
+    if rules.empty:
+        return f"No strong rules found to predict tourism impact for {country}."
+
+    # Filter for rules predicting High_Tourism_Impact
+    high_impact_rules = rules[rules['consequents'].apply(lambda x: 'High_Tourism_Impact' in list(x))]
+
+    if not high_impact_rules.empty:
+        best_rule = high_impact_rules.iloc[0]
+        return (
+            f"{country} might have high tourism impact based on patterns in the data. "
+            f"(Support: {best_rule['support']:.2f}, Confidence: {best_rule['confidence']:.2f})"
+        )
+
     return f"No strong indication of high tourism impact for {country}."
+
 
 # Example usage
 country_to_predict = 'Portugal'  # Replace with any country in your dataset
-prediction = predict_high_tourism_impact(rules, country_to_predict)
+prediction = predict_high_tourism_impact(country_to_predict)
 print(prediction)
